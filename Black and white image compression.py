@@ -1,6 +1,6 @@
 import numpy as np
 import sympy as sp
-
+from PIL import Image
 
 
 
@@ -68,3 +68,59 @@ print(f"Back to the original matrix M \n {np.matmul(np.matmul(U_matrix,sigma),V_
 
 
 
+
+def eckart(img_m, r):
+    r = int(r)
+    img_m = img_m.astype(float)
+    M, N = img_m.shape
+
+
+    m_t = np.transpose(img_m)
+    m_tm = np.matmul(m_t, img_m)
+    size = len(m_tm)
+
+
+    #sorting
+    evals, evecs = np.linalg.eigh(m_tm)
+    idx = np.argsort(evals)[::-1]
+    evals = evals[idx]
+    V = evecs[:, idx]
+    V_t = np.transpose(V)
+    #Getting the U matrix
+    evals_u, evecs_u = np.linalg.eigh(np.matmul(img_m, m_t))
+    idx_u = np.argsort(evals_u)[::-1]
+    U = evecs_u[:, idx_u]
+
+    # Compression happens here
+    s_sqrt = np.sqrt(np.maximum(evals, 0))
+
+    sigma_full = np.zeros((M, N))
+    min_dim = min(M, N)
+
+    s_compressed = np.copy(s_sqrt)
+    s_compressed[r:] = 0
+
+    np.fill_diagonal(sigma_full[:min_dim, :min_dim], s_compressed[:min_dim])
+
+    for i in range(min(M, N)):
+        if s_sqrt[i] > 1e-10:
+            # Predict what u_i should look like based on v_i
+            prediction = np.dot(img_m, V[:, i])
+            # If the prediction points opposite to our U column, flip the U column
+            if np.dot(prediction, U[:, i]) < 0:
+                U[:, i] = -U[:, i]
+
+    reconstructed = np.matmul(np.matmul(U, sigma_full), V_t)
+
+
+    reconstructed_clipped = np.clip(reconstructed, 0, 255).astype(np.uint8)
+    img_out = Image.fromarray(reconstructed_clipped, mode='L')
+
+    img_out.show()
+    img_out.save('output_image.jpg')
+    return img_out
+
+img = Image.open('test_img.jpg').convert('L')
+img_m = np.array(img)
+r= input("Choose till which rank you want to approximate:")
+eckart(img_m,int(r))
